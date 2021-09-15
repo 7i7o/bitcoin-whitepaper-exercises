@@ -4,6 +4,7 @@ var path = require("path");
 var fs = require("fs");
 var crypto = require("crypto");
 var openpgp = require("openpgp");
+const { stringify } = require("querystring");
 
 const KEYS_DIR = path.join(__dirname,"keys");
 const PRIV_KEY_TEXT = fs.readFileSync(path.join(KEYS_DIR,"priv.pgp.key"),"utf8");
@@ -45,8 +46,14 @@ async function addPoem() {
 	var transactions = [];
 
 	// TODO: add poem lines as authorized transactions
-	// for (let line of poem) {
-	// }
+	for (let line of poem) {
+		let tr = createTransaction(line);
+		tr = await authorizeTransaction(tr);
+		// console.log(tr);
+		// let verify = await verifySignature(tr.signature, tr.pubKey);
+		// console.log('Transaction Signature Verified: '+verify);
+		transactions.push(tr);
+	}
 
 	var bl = createBlock(transactions);
 
@@ -70,6 +77,25 @@ function createBlock(data) {
 	bl.hash = blockHash(bl);
 
 	return bl;
+}
+
+// TODO: createTransaction function
+// should have data field
+// needs a hash field with value returned
+// from transactionHash
+function createTransaction(data) {
+	let tr = {
+		data,
+	}
+	tr.hash = transactionHash(tr);
+	return tr;
+}
+
+// TODO: async authorizeTransaction
+async function authorizeTransaction(tr) {
+	tr.pubKey = PUB_KEY_TEXT;
+	tr.signature =  await createSignature(tr.hash, PRIV_KEY_TEXT);
+	return tr;
 }
 
 function transactionHash(tr) {
@@ -97,13 +123,23 @@ async function verifySignature(signature,pubKey) {
 			message: openpgp.cleartext.readArmored(signature),
 			publicKeys: pubKeyObj,
 		};
-
+		// console.log('...Verifiyng Signature')
 		return (await openpgp.verify(options)).signatures[0].valid;
 	}
 	catch (err) {}
 
 	return false;
 }
+
+// TODO: verifyTransaction
+async function verifyTransaction(tr) {
+	if (!tr.pubKey) return false;
+	if (!tr.signature) return false;
+	if (tr.hash != transactionHash(tr)) return false;
+	let verify = await verifySignature(tr.signature, tr.pubKey);
+	return verify;
+}
+
 
 function blockHash(bl) {
 	return crypto.createHash("sha256").update(
@@ -129,6 +165,11 @@ async function verifyBlock(bl) {
 		if (!Array.isArray(bl.data)) return false;
 
 		// TODO: verify transactions in block
+		for (let tr of bl.data) {
+			let verify = await verifyTransaction(tr);
+			// console.log('Transaction Verified: ' + verify + ' (' + tr.data + ')' );
+			if (!verify) return false;
+		}
 	}
 
 	return true;

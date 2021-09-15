@@ -71,6 +71,8 @@ function verifyChain(bc) {
 }
 
 function verifyBlock (bl) {
+	console.log('Checking validity of Block '+bl.index);
+	if (bl.data == null) return false; // data not empty
 	if (bl.index < 0 || bl.index % 1 != 0) return false; // Negative or not Integer
 	if (bl.index === 0) return (bl.hash === "000000"); // Genesis block
 	if (bl.data.length === 0) return false; // data not empty
