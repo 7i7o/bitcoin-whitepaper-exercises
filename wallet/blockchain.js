@@ -4,6 +4,7 @@ var path = require("path");
 var fs = require("fs");
 var crypto = require("crypto");
 var openpgp = require("openpgp");
+const { stringify } = require("querystring");
 
 var myChain = {
 	blocks: [],
@@ -31,11 +32,11 @@ Object.assign(module.exports,{
 
 // **********************************
 
-function createBlock(data) {
+function createBlock(_data) {
 	var bl = {
 		index: myChain.blocks.length,
 		prevHash: myChain.blocks[myChain.blocks.length-1].hash,
-		data,
+		data: _data,
 		timestamp: Date.now(),
 	};
 
@@ -141,9 +142,35 @@ async function verifyBlock(bl) {
 	return true;
 }
 
+function stringifyBlock(bl) {
+	let block = ` - Block ${bl.index} . prevHash ${bl.prevHash} . timestamp ${bl.timestamp} . hash ${bl.hash} . data (Txs) [`
+	if (bl.data) {
+		for (let tr of bl.data) {
+			block += `trHash ${tr.hash} . trData (Txs) (`
+				if (tr.data) {
+					let trData = tr.data;
+					block += `inputs <`
+					for (let input of trData.inputs) {
+						block += `${input.amount}, `
+					}
+					block += `> . outputs <`
+					for (let output of trData.outputs) {
+						block += `${output.amount}, `
+					}
+					block += `>`
+				}
+				// block += JSON.stringify(tr.data)
+			block += `), `
+		}
+	}
+	block += `]`
+	return block;
+}
+
 async function verifyChain(chain) {
 	var prevHash;
 	for (let bl of chain.blocks) {
+		// console.log(stringifyBlock(bl));
 		if (prevHash && bl.prevHash !== prevHash) return false;
 		if (!(await verifyBlock(bl))) return false;
 		prevHash = bl.hash;
