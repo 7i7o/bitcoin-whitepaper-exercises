@@ -20,7 +20,7 @@ var poem = [
 	"especially yours can heal a frozen heart",
 ];
 
-const maxBlockSize = 4;
+const maxBlockSize = 4; // Higher than 1, because 'blockFee' Object counts toward maxBlockSize limit
 const blockFee = 5;
 var difficulty = 16;
 
@@ -47,14 +47,64 @@ countMyEarnings();
 
 function addPoem() {
 	// TODO: add lines of poem as transactions to the transaction-pool
+	let totalPoemFee = 0
+	for (let line of poem) {
+		let tr = createTransaction(line, Math.ceil(Math.random()*10))
+		transactionPool.push(tr)
+		// console.log(`  fee: ${tr.fee} - data: ${tr.data}`)
+		totalPoemFee += tr.fee
+	}
+	console.log(`Total fee of poem lines: ${totalPoemFee}`)
+	console.log(' ')
 }
 
 function processPool() {
 	// TODO: process the transaction-pool in order of highest fees
+	transactionPool = [...transactionPool].sort((a, b) => b.fee - a.fee );
+
+	while (transactionPool.length > 0) {
+		let blockTransactionList = [
+			{
+				blockFee,
+				account: PUB_KEY_TEXT
+			},
+		]
+		let trList = transactionPool.splice(0, Math.min(maxBlockSize-1, transactionPool.length))
+		for (let tr of trList) {
+			blockTransactionList.push(tr);
+		}
+		// console.log(JSON.stringify(blockTransactionList))
+		Blockchain.blocks.push(createBlock(blockTransactionList));
+	}
 }
 
 function countMyEarnings() {
 	// TODO: count up block-fees and transaction-fees
+	let totalBlockFees = 0
+	let totalTransactionFess = 0
+	for (let bl of Blockchain.blocks) {
+		if (bl.index > 0) {
+			let blockTransactionFees = 0
+			for (let i = 0; i < bl.data.length; i++) {
+				let tr = bl.data[i]
+				if (i == 0) {
+					totalBlockFees += tr.blockFee
+					// console.log(`  - Block ${bl.index} Fee: ${tr.blockFee}`)
+				} else {
+					blockTransactionFees += tr.fee
+					// console.log(`   L Transaction Fee: ${tr.fee} (data: ${tr.data})`)
+				}
+			}
+			totalTransactionFess += blockTransactionFees
+			// console.log(`  Sum of Transaction Fees in Block ${bl.index}: ${blockTransactionFees}`)
+			// console.log(' ')
+		}
+	}
+	console.log(` Sum of Block Fees: ${totalBlockFees}`)
+	console.log(` Sum of Transaction Fees: ${totalTransactionFess}`)
+	console.log(' ')
+	console.log(`Total Earnings: ${totalBlockFees + totalTransactionFess}`)
+
 }
 
 function createBlock(data) {
@@ -90,9 +140,10 @@ function hashIsLowEnough(hash) {
 	return prefix <= threshold;
 }
 
-function createTransaction(data) {
+function createTransaction(data, fee) {
 	var tr = {
 		data,
+		fee,
 	};
 
 	tr.hash = transactionHash(tr);
@@ -102,6 +153,6 @@ function createTransaction(data) {
 
 function transactionHash(tr) {
 	return crypto.createHash("sha256").update(
-		`${JSON.stringify(tr.data)}`
+		`${JSON.stringify(tr.data)};${JSON.stringify(tr.fee)}`
 	).digest("hex");
 }
